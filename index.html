@@ -63,9 +63,21 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
   </div>
 
   <!-- Napomena -->
-  <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-gray-700">
+  <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-gray-700 mb-4">
     <p class="font-semibold mb-1">💡 Napomena:</p>
-    <p>Svi podaci su deljeni sa svim korisnicima aplikacije. Budi korektan!</p>
+    <p>Podaci se čuvaju lokalno na tvom uređaju. Za deljenje između korisnika koristi Link opciju.</p>
+  </div>
+
+  <!-- Link za deljenje -->
+  <div class="bg-white rounded-lg shadow-lg p-4 border-2 border-purple-300">
+    <h3 class="font-bold text-gray-800 mb-2">🔗 Podeli sa drugima:</h3>
+    <p class="text-sm text-gray-600 mb-2">Link do aplikacije:</p>
+    <div class="flex gap-2">
+      <input id="share-link" type="text" value="https://kezi-hassio.github.io/Ev-punjac-lidl/" readonly class="flex-1 px-3 py-2 bg-gray-50 border rounded text-sm">
+      <button id="copy-btn" class="bg-purple-500 text-white px-4 py-2 rounded font-semibold hover:bg-purple-600">
+        Kopiraj
+      </button>
+    </div>
   </div>
 </div>
 
@@ -141,33 +153,21 @@ const durationDisplay = document.getElementById('duration-display');
 const userAvatar = document.getElementById('user-avatar');
 const userName = document.getElementById('user-name');
 const timeLeft = document.getElementById('time-left');
+const copyBtn = document.getElementById('copy-btn');
+const shareLink = document.getElementById('share-link');
 
-// Storage funkcije
-async function getSession() {
-  try {
-    const result = await window.storage.get('lidl_session', true);
-    return result ? JSON.parse(result.value) : null;
-  } catch {
-    return null;
-  }
+// LocalStorage funkcije
+function getSession() {
+  const data = localStorage.getItem('ev_session');
+  return data ? JSON.parse(data) : null;
 }
 
-async function saveSession(session) {
-  try {
-    await window.storage.set('lidl_session', JSON.stringify(session), true);
-    return true;
-  } catch {
-    return false;
-  }
+function saveSession(session) {
+  localStorage.setItem('ev_session', JSON.stringify(session));
 }
 
-async function clearSession() {
-  try {
-    await window.storage.set('lidl_session', JSON.stringify(null), true);
-    return true;
-  } catch {
-    return false;
-  }
+function clearSession() {
+  localStorage.removeItem('ev_session');
 }
 
 // Notifikacija
@@ -181,8 +181,8 @@ function showNotification(message, isSuccess) {
 }
 
 // Ažuriraj UI
-async function updateUI() {
-  currentSession = await getSession();
+function updateUI() {
+  currentSession = getSession();
   
   if (currentSession && currentSession.endTime > Date.now()) {
     // Punjač je zauzet
@@ -211,6 +211,10 @@ async function updateUI() {
     updateTimeLeft();
   } else {
     // Punjač je slobodan
+    if (currentSession && currentSession.endTime <= Date.now()) {
+      clearSession();
+    }
+    
     chargerCard.classList.add('border-green-300');
     chargerCard.classList.remove('border-red-300');
     statusBadge.textContent = 'Slobodan';
@@ -256,7 +260,7 @@ fileInput.addEventListener('change', (e) => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_SIZE = 1000;
+        const MAX_SIZE = 100;
         let width = img.width;
         let height = img.height;
         
@@ -291,16 +295,16 @@ durationSlider.addEventListener('input', (e) => {
   durationDisplay.textContent = `${duration} min`;
 });
 
-confirmBtn.addEventListener('click', async () => {
+confirmBtn.addEventListener('click', () => {
   const name = nameInput.value.trim();
   
   if (!name) {
-    alert('Unesi ime!');
+    showNotification('Unesi ime!', false);
     return;
   }
   
   if (!selectedAvatar) {
-    alert('Izaberi sliku!');
+    showNotification('Izaberi sliku!', false);
     return;
   }
   
@@ -314,37 +318,38 @@ confirmBtn.addEventListener('click', async () => {
     duration: duration
   };
   
-  const success = await saveSession(newSession);
+  saveSession(newSession);
+  localStorage.setItem('userId', userId);
+  currentUserId = userId;
   
-  if (success) {
-    localStorage.setItem('userId', userId);
-    currentUserId = userId;
-    modal.classList.add('hidden');
-    nameInput.value = '';
-    selectedAvatar = null;
-    previewBox.innerHTML = '<span class="text-gray-400 text-3xl">👤</span>';
-    showNotification('✓ Uspešno rezervisano!', true);
+  modal.classList.add('hidden');
+  nameInput.value = '';
+  selectedAvatar = null;
+  previewBox.innerHTML = '<span class="text-gray-400 text-3xl">👤</span>';
+  
+  showNotification('✓ Uspešno rezervisano!', true);
+  updateUI();
+});
+
+checkoutBtn.addEventListener('click', () => {
+  if (confirm('Oslobodiš punjač?')) {
+    clearSession();
+    localStorage.removeItem('userId');
+    currentUserId = null;
+    showNotification('✓ Punjač oslobođen!', true);
     updateUI();
-  } else {
-    alert('Greška! Pokušaj ponovo.');
   }
 });
 
-checkoutBtn.addEventListener('click', async () => {
-  if (confirm('Oslobodiš punjač?')) {
-    const success = await clearSession();
-    if (success) {
-      localStorage.removeItem('userId');
-      currentUserId = null;
-      showNotification('✓ Punjač oslobođen!', true);
-      updateUI();
-    }
-  }
+copyBtn.addEventListener('click', () => {
+  shareLink.select();
+  document.execCommand('copy');
+  showNotification('✓ Link kopiran!', true);
 });
 
 // Inicijalizacija i auto-refresh
 updateUI();
-setInterval(updateUI, 5000);
+setInterval(updateUI, 2000);
 setInterval(updateTimeLeft, 1000);
 </script>
 
