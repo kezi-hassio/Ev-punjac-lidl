@@ -113,8 +113,15 @@ const database = firebase.database();
 const sessionRef = database.ref('charger_session');
 
 let currentSession = null;
-let currentUserId = localStorage.getItem('userId');
 let duration = 30;
+
+// Generiši JEDINSTVENI ID za ovaj browser/uređaj koji se čuva u sessionStorage
+// sessionStorage radi i u Safari i u PWA i deli se između njih!
+let deviceId = sessionStorage.getItem('deviceId');
+if (!deviceId) {
+  deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  sessionStorage.setItem('deviceId', deviceId);
+}
 
 const modal = document.getElementById('modal');
 const chargerCard = document.getElementById('charger-card');
@@ -140,14 +147,18 @@ function showNotification(message, isSuccess) {
   setTimeout(() => notification.classList.add('hidden'), 3000);
 }
 
+// Slušaj promene u Firebase-u
 sessionRef.on('value', (snapshot) => {
   currentSession = snapshot.val();
+  console.log('Session update:', currentSession);
+  console.log('My device ID:', deviceId);
   updateUI();
   
   onlineStatus.textContent = '✓ Online';
   onlineStatus.className = 'inline-block px-3 py-1 rounded-full text-xs font-semibold mt-2 bg-green-100 text-green-700';
 });
 
+// Proveri internet konekciju
 database.ref('.info/connected').on('value', (snapshot) => {
   if (!snapshot.val()) {
     onlineStatus.textContent = '✗ Offline';
@@ -157,6 +168,7 @@ database.ref('.info/connected').on('value', (snapshot) => {
 
 function updateUI() {
   if (currentSession && currentSession.endTime > Date.now()) {
+    // Punjač je zauzet
     chargerCard.classList.add('border-red-300');
     chargerCard.classList.remove('border-green-300');
     statusBadge.textContent = 'Zauzet';
@@ -167,14 +179,21 @@ function updateUI() {
     
     userName.textContent = currentSession.name;
     
-    if (currentSession.userId === currentUserId) {
+    // KLJUČNA PROMENA: Poređenje deviceId umesto userId
+    console.log('Session deviceId:', currentSession.deviceId);
+    console.log('My deviceId:', deviceId);
+    console.log('Match:', currentSession.deviceId === deviceId);
+    
+    if (currentSession.deviceId === deviceId) {
       checkoutBtn.classList.remove('hidden');
+      checkoutBtn.textContent = '✓ Oslobodi punjač (TI)';
     } else {
       checkoutBtn.classList.add('hidden');
     }
     
     updateTimeLeft();
   } else {
+    // Punjač je slobodan
     if (currentSession && currentSession.endTime <= Date.now()) {
       sessionRef.remove();
     }
@@ -227,19 +246,17 @@ confirmBtn.addEventListener('click', () => {
     return;
   }
   
-  const userId = 'user_' + Date.now();
   const newSession = {
-    userId: userId,
+    deviceId: deviceId,  // Čuvamo deviceId umesto userId
     name: name,
     startTime: Date.now(),
     endTime: Date.now() + (duration * 60 * 1000),
     duration: duration
   };
   
+  console.log('Creating session with deviceId:', deviceId);
+  
   sessionRef.set(newSession).then(() => {
-    localStorage.setItem('userId', userId);
-    currentUserId = userId;
-    
     modal.classList.add('hidden');
     nameInput.value = '';
     duration = 30;
@@ -256,8 +273,6 @@ confirmBtn.addEventListener('click', () => {
 checkoutBtn.addEventListener('click', () => {
   if (confirm('Oslobodiš punjač?')) {
     sessionRef.remove().then(() => {
-      localStorage.removeItem('userId');
-      currentUserId = null;
       showNotification('✓ Punjač oslobođen!', true);
     }).catch((error) => {
       console.error('Greška:', error);
@@ -266,8 +281,10 @@ checkoutBtn.addEventListener('click', () => {
   }
 });
 
+// Ažuriraj vreme svake sekunde
 setInterval(updateTimeLeft, 1000);
 </script>
+
 
 </body>
 </html>
