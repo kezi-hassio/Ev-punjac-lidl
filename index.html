@@ -1,102 +1,3 @@
-<!DOCTYPE html>
-<html lang="sr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#10b981">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<title>EV Punjač Lidl</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-<style>
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-</style>
-</head>
-<body class="bg-gradient-to-br from-blue-50 to-green-50 min-h-screen p-4">
-
-<div class="max-w-md mx-auto mt-8">
-  <div class="text-center mb-8">
-    <h1 class="text-4xl font-bold text-gray-800 mb-2">⚡ EV Punjači</h1>
-    <p class="text-gray-600">Lidl Kaluđerica</p>
-    <div id="online-status" class="inline-block px-3 py-1 rounded-full text-xs font-semibold mt-2 bg-gray-200 text-gray-600">
-      🔄 Povezivanje...
-    </div>
-  </div>
-
-  <div id="charger-card" class="bg-white rounded-lg shadow-lg p-6 border-2 mb-6">
-    <div class="flex justify-between items-start mb-4">
-      <div>
-        <h3 class="text-lg font-bold text-gray-800">EV Punjač Lidl Kaluđerica</h3>
-        <p class="text-sm text-gray-600">📍 Kaluđerica, Beograd</p>
-        <p class="text-sm text-gray-600 mt-1">🔋 20kW DC</p>
-      </div>
-      <div id="status-badge" class="px-3 py-1 rounded-full text-sm font-semibold bg-gray-200 text-gray-600">
-        Učitava...
-      </div>
-    </div>
-
-    <div id="occupied-view" class="hidden bg-red-50 rounded-lg p-4 border border-red-200">
-      <div class="flex items-center justify-between mb-3">
-        <div class="flex items-center">
-          <div class="w-12 h-12 bg-red-200 rounded-full flex items-center justify-center text-2xl mr-3">👤</div>
-          <div>
-            <div id="user-name" class="font-bold text-lg"></div>
-            <div class="text-sm text-gray-600">Punjač zauzet</div>
-          </div>
-        </div>
-        <div class="text-right">
-          <div id="time-left" class="text-red-600 font-bold text-xl">⏱️</div>
-          <div class="text-xs text-gray-500">preostalo</div>
-        </div>
-      </div>
-      <button id="checkout-btn" class="w-full mt-3 bg-red-500 text-white py-3 rounded-lg font-semibold hover:bg-red-600 hidden">
-        ✓ Oslobodi punjač
-      </button>
-    </div>
-
-    <div id="free-view" class="hidden">
-      <button id="checkin-btn" class="w-full bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600">
-        Check-in
-      </button>
-    </div>
-  </div>
-
-  <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-gray-700">
-    <p class="font-semibold mb-1">💡 Napomena:</p>
-    <p>Svi korisnici vide isti status u realnom vremenu! 🌍</p>
-  </div>
-</div>
-
-<div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-  <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-    <h2 class="text-2xl font-bold text-gray-800 mb-4">Check-in</h2>
-    
-    <div class="mb-4">
-      <label class="block text-gray-700 font-semibold mb-2">Tvoje ime:</label>
-      <input id="name-input" type="text" placeholder="Unesi ime..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
-    </div>
-
-    <div class="mb-6">
-      <label class="block text-gray-700 font-semibold mb-2">Koliko dugo? (minuta)</label>
-      <input id="duration-slider" type="range" min="15" max="300" step="15" value="30" class="w-full">
-      <div id="duration-display" class="text-center text-2xl font-bold text-green-600 mt-2">30 min</div>
-    </div>
-
-    <div class="flex gap-3">
-      <button id="cancel-btn" class="flex-1 px-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300">
-        Otkaži
-      </button>
-      <button id="confirm-btn" class="flex-1 px-4 py-3 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600">
-        Potvrdi
-      </button>
-    </div>
-  </div>
-</div>
-
-<div id="notification" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-4 rounded-lg shadow-2xl text-white font-semibold"></div>
-
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyCg-60AsktOtXqj3BOXuIZLY-6dfamqcmo",
@@ -115,30 +16,67 @@ const sessionRef = database.ref('charger_session');
 let currentSession = null;
 let duration = 30;
 
-// Generiši JEDINSTVENI ID za ovaj browser/uređaj koji se čuva u sessionStorage
-// sessionStorage radi i u Safari i u PWA i deli se između njih!
-let deviceId = sessionStorage.getItem('deviceId');
-if (!deviceId) {
-  deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-  sessionStorage.setItem('deviceId', deviceId);
+// Generiši jedinstveni ID uređaja
+function getDeviceId() {
+  let deviceId = localStorage.getItem('deviceId');
+  
+  if (!deviceId) {
+    // Kreiraj jedinstveni ID baziran na različitim karakteristikama uređaja
+    const fingerprint = [
+      navigator.userAgent,
+      navigator.language,
+      screen.width + 'x' + screen.height,
+      screen.colorDepth,
+      new Date().getTimezoneOffset(),
+      !!window.sessionStorage,
+      !!window.localStorage
+    ].join('|');
+    
+    // Hash fingerprint u jedinstveni ID
+    let hash = 0;
+    for (let i = 0; i < fingerprint.length; i++) {
+      const char = fingerprint.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    
+    deviceId = 'device_' + Math.abs(hash) + '_' + Date.now();
+    localStorage.setItem('deviceId', deviceId);
+  }
+  
+  return deviceId;
 }
 
+const myDeviceId = getDeviceId();
+console.log('My Device ID:', myDeviceId);
+
 const modal = document.getElementById('modal');
+const pinModal = document.getElementById('pin-modal');
+const pinInputModal = document.getElementById('pin-input-modal');
 const chargerCard = document.getElementById('charger-card');
 const statusBadge = document.getElementById('status-badge');
 const occupiedView = document.getElementById('occupied-view');
 const freeView = document.getElementById('free-view');
 const checkinBtn = document.getElementById('checkin-btn');
-const checkoutBtn = document.getElementById('checkout-btn');
+const checkoutWithPinBtn = document.getElementById('checkout-with-pin-btn');
 const confirmBtn = document.getElementById('confirm-btn');
 const cancelBtn = document.getElementById('cancel-btn');
+const pinOkBtn = document.getElementById('pin-ok-btn');
+const pinCancelBtn = document.getElementById('pin-cancel-btn');
+const pinConfirmBtn = document.getElementById('pin-confirm-btn');
 const nameInput = document.getElementById('name-input');
+const pinInput = document.getElementById('pin-input');
+const pinDisplay = document.getElementById('pin-display');
 const durationSlider = document.getElementById('duration-slider');
 const durationDisplay = document.getElementById('duration-display');
 const userName = document.getElementById('user-name');
 const timeLeft = document.getElementById('time-left');
 const onlineStatus = document.getElementById('online-status');
 const notification = document.getElementById('notification');
+
+function generatePin() {
+  return Math.floor(1000 + Math.random() * 9000).toString();
+}
 
 function showNotification(message, isSuccess) {
   notification.textContent = message;
@@ -147,18 +85,15 @@ function showNotification(message, isSuccess) {
   setTimeout(() => notification.classList.add('hidden'), 3000);
 }
 
-// Slušaj promene u Firebase-u
 sessionRef.on('value', (snapshot) => {
   currentSession = snapshot.val();
-  console.log('Session update:', currentSession);
-  console.log('My device ID:', deviceId);
+  console.log('Session:', currentSession);
   updateUI();
   
   onlineStatus.textContent = '✓ Online';
   onlineStatus.className = 'inline-block px-3 py-1 rounded-full text-xs font-semibold mt-2 bg-green-100 text-green-700';
 });
 
-// Proveri internet konekciju
 database.ref('.info/connected').on('value', (snapshot) => {
   if (!snapshot.val()) {
     onlineStatus.textContent = '✗ Offline';
@@ -167,8 +102,12 @@ database.ref('.info/connected').on('value', (snapshot) => {
 });
 
 function updateUI() {
+  if (currentSession && currentSession.endTime <= Date.now()) {
+    sessionRef.remove();
+    currentSession = null;
+  }
+  
   if (currentSession && currentSession.endTime > Date.now()) {
-    // Punjač je zauzet
     chargerCard.classList.add('border-red-300');
     chargerCard.classList.remove('border-green-300');
     statusBadge.textContent = 'Zauzet';
@@ -179,25 +118,41 @@ function updateUI() {
     
     userName.textContent = currentSession.name;
     
-    // KLJUČNA PROMENA: Poređenje deviceId umesto userId
     console.log('Session deviceId:', currentSession.deviceId);
-    console.log('My deviceId:', deviceId);
-    console.log('Match:', currentSession.deviceId === deviceId);
+    console.log('My deviceId:', myDeviceId);
+    console.log('Match:', currentSession.deviceId === myDeviceId);
     
-    if (currentSession.deviceId === deviceId) {
-      checkoutBtn.classList.remove('hidden');
-      checkoutBtn.textContent = '✓ Oslobodi punjač (TI)';
+    // Proveri da li je ovo MOJ uređaj
+    const isMyDevice = currentSession.deviceId === myDeviceId;
+    
+    // Ukloni stara dugmad
+    const oldQuickBtn = document.getElementById('quick-release-btn');
+    if (oldQuickBtn) oldQuickBtn.remove();
+    
+    if (isMyDevice) {
+      // Kreiraj ZELENO dugme za direktno oslobađanje
+      const quickReleaseBtn = document.createElement('button');
+      quickReleaseBtn.id = 'quick-release-btn';
+      quickReleaseBtn.className = 'w-full mt-3 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600';
+      quickReleaseBtn.textContent = '✓ Oslobodi punjač (MOJA REZERVACIJA)';
+      quickReleaseBtn.onclick = () => {
+        if (confirm('Oslobodiš punjač?')) {
+          sessionRef.remove().then(() => {
+            showNotification('✓ Punjač oslobođen!', true);
+          });
+        }
+      };
+      
+      // Sakrij PIN dugme, prikaži zeleno dugme
+      checkoutWithPinBtn.classList.add('hidden');
+      occupiedView.querySelector('.space-y-2').appendChild(quickReleaseBtn);
     } else {
-      checkoutBtn.classList.add('hidden');
+      // Prikaži PIN dugme za druge korisnike
+      checkoutWithPinBtn.classList.remove('hidden');
     }
     
     updateTimeLeft();
   } else {
-    // Punjač je slobodan
-    if (currentSession && currentSession.endTime <= Date.now()) {
-      sessionRef.remove();
-    }
-    
     chargerCard.classList.add('border-green-300');
     chargerCard.classList.remove('border-red-300');
     statusBadge.textContent = 'Slobodan';
@@ -212,11 +167,18 @@ function updateTimeLeft() {
   if (!currentSession) return;
   
   const remaining = currentSession.endTime - Date.now();
+  
   if (remaining > 0) {
     const minutes = Math.floor(remaining / 60000);
-    timeLeft.textContent = `${minutes} min`;
+    const seconds = Math.floor((remaining % 60000) / 1000);
+    
+    if (minutes > 0) {
+      timeLeft.textContent = `${minutes} min`;
+    } else {
+      timeLeft.textContent = `${seconds} sek`;
+    }
   } else {
-    timeLeft.textContent = 'Isteklo';
+    timeLeft.textContent = 'Oslobađam...';
     sessionRef.remove();
   }
 }
@@ -246,15 +208,18 @@ confirmBtn.addEventListener('click', () => {
     return;
   }
   
+  const pin = generatePin();
+  
   const newSession = {
-    deviceId: deviceId,  // Čuvamo deviceId umesto userId
+    deviceId: myDeviceId,  // Čuva se device ID
+    pin: pin,  // I dalje ima PIN za alternativno oslobađanje
     name: name,
     startTime: Date.now(),
     endTime: Date.now() + (duration * 60 * 1000),
     duration: duration
   };
   
-  console.log('Creating session with deviceId:', deviceId);
+  console.log('Creating session with deviceId:', myDeviceId);
   
   sessionRef.set(newSession).then(() => {
     modal.classList.add('hidden');
@@ -263,28 +228,49 @@ confirmBtn.addEventListener('click', () => {
     durationSlider.value = 30;
     durationDisplay.textContent = '30 min';
     
-    showNotification('✓ Uspešno rezervisano!', true);
+    pinDisplay.textContent = pin;
+    pinModal.classList.remove('hidden');
   }).catch((error) => {
     console.error('Greška:', error);
     showNotification('Greška pri rezervaciji!', false);
   });
 });
 
-checkoutBtn.addEventListener('click', () => {
-  if (confirm('Oslobodiš punjač?')) {
+pinOkBtn.addEventListener('click', () => {
+  pinModal.classList.add('hidden');
+  showNotification('✓ Uspešno rezervisano!', true);
+});
+
+checkoutWithPinBtn.addEventListener('click', () => {
+  pinInputModal.classList.remove('hidden');
+  pinInput.value = '';
+  pinInput.focus();
+});
+
+pinCancelBtn.addEventListener('click', () => {
+  pinInputModal.classList.add('hidden');
+  pinInput.value = '';
+});
+
+pinConfirmBtn.addEventListener('click', () => {
+  const enteredPin = pinInput.value.trim();
+  
+  if (!enteredPin) {
+    showNotification('Unesi PIN kod!', false);
+    return;
+  }
+  
+  if (currentSession && currentSession.pin === enteredPin) {
     sessionRef.remove().then(() => {
+      pinInputModal.classList.add('hidden');
+      pinInput.value = '';
       showNotification('✓ Punjač oslobođen!', true);
-    }).catch((error) => {
-      console.error('Greška:', error);
-      showNotification('Greška pri oslobađanju!', false);
     });
+  } else {
+    showNotification('✗ Pogrešan PIN kod!', false);
+    pinInput.value = '';
   }
 });
 
-// Ažuriraj vreme svake sekunde
 setInterval(updateTimeLeft, 1000);
 </script>
-
-
-</body>
-</html>
