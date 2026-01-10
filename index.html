@@ -70,4 +70,237 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 
 <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
   <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-    <h2 class="text-2xl font-bold text​​​​​​​​​​​​​​​​
+    <h2 class="text-2xl font-bold text-gray-800 mb-4">Check-in</h2>
+    
+    <div class="mb-4">
+      <label class="block text-gray-700 font-semibold mb-2">Tvoje ime:</label>
+      <input id="name-input" type="text" placeholder="Unesi ime..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+    </div>
+
+    <div class="mb-6">
+      <label class="block text-gray-700 font-semibold mb-2">Koliko dugo? (minuta)</label>
+      <input id="duration-slider" type="range" min="15" max="300" step="15" value="30" class="w-full">
+      <div id="duration-display" class="text-center text-2xl font-bold text-green-600 mt-2">30 min</div>
+    </div>
+
+    <div class="flex gap-3">
+      <button id="cancel-btn" class="flex-1 px-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300">
+        Otkaži
+      </button>
+      <button id="confirm-btn" class="flex-1 px-4 py-3 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600">
+        Potvrdi
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="notification" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-4 rounded-lg shadow-2xl text-white font-semibold"></div>
+
+<script>
+try {
+  const firebaseConfig = {
+    apiKey: "AIzaSyCg-60AsktOtXqj3BOXuIZLY-6dfamqcmo",
+    authDomain: "ev-punjac-lidl.firebaseapp.com",
+    databaseURL: "https://ev-punjac-lidl-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "ev-punjac-lidl",
+    storageBucket: "ev-punjac-lidl.firebasestorage.app",
+    messagingSenderId: "355937933260",
+    appId: "1:355937933260:web:7939c0022a2103682f2f69"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const database = firebase.database();
+  const sessionRef = database.ref('charger_session');
+
+  let currentSession = null;
+  let duration = 30;
+
+  function getDeviceId() {
+    let deviceId = localStorage.getItem('myDeviceId');
+    
+    if (!deviceId) {
+      deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('myDeviceId', deviceId);
+      console.log('Created new device ID:', deviceId);
+    } else {
+      console.log('Using existing device ID:', deviceId);
+    }
+    
+    return deviceId;
+  }
+
+  const myDeviceId = getDeviceId();
+
+  const modal = document.getElementById('modal');
+  const chargerCard = document.getElementById('charger-card');
+  const statusBadge = document.getElementById('status-badge');
+  const occupiedView = document.getElementById('occupied-view');
+  const freeView = document.getElementById('free-view');
+  const checkinBtn = document.getElementById('checkin-btn');
+  const confirmBtn = document.getElementById('confirm-btn');
+  const cancelBtn = document.getElementById('cancel-btn');
+  const nameInput = document.getElementById('name-input');
+  const durationSlider = document.getElementById('duration-slider');
+  const durationDisplay = document.getElementById('duration-display');
+  const userName = document.getElementById('user-name');
+  const timeLeft = document.getElementById('time-left');
+  const onlineStatus = document.getElementById('online-status');
+  const notification = document.getElementById('notification');
+  const buttonContainer = document.getElementById('button-container');
+
+  function showNotification(message, isSuccess) {
+    notification.textContent = message;
+    notification.className = `fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-4 rounded-lg shadow-2xl text-white font-semibold ${isSuccess ? 'bg-green-500' : 'bg-red-500'}`;
+    notification.classList.remove('hidden');
+    setTimeout(() => notification.classList.add('hidden'), 3000);
+  }
+
+  sessionRef.on('value', (snapshot) => {
+    currentSession = snapshot.val();
+    console.log('Session update:', currentSession);
+    console.log('My device:', myDeviceId);
+    updateUI();
+    
+    onlineStatus.textContent = '✓ Online';
+    onlineStatus.className = 'inline-block px-3 py-1 rounded-full text-xs font-semibold mt-2 bg-green-100 text-green-700';
+  });
+
+  database.ref('.info/connected').on('value', (snapshot) => {
+    if (!snapshot.val()) {
+      onlineStatus.textContent = '✗ Offline';
+      onlineStatus.className = 'inline-block px-3 py-1 rounded-full text-xs font-semibold mt-2 bg-red-100 text-red-700';
+    }
+  });
+
+  function updateUI() {
+    if (currentSession && currentSession.endTime <= Date.now()) {
+      sessionRef.remove();
+      currentSession = null;
+    }
+    
+    if (currentSession && currentSession.endTime > Date.now()) {
+      chargerCard.classList.add('border-red-300');
+      chargerCard.classList.remove('border-green-300');
+      statusBadge.textContent = 'Zauzet';
+      statusBadge.className = 'px-3 py-1 rounded-full text-sm font-semibold bg-red-100 text-red-700';
+      
+      occupiedView.classList.remove('hidden');
+      freeView.classList.add('hidden');
+      
+      userName.textContent = currentSession.name;
+      
+      const isMyDevice = currentSession.deviceId === myDeviceId;
+      console.log('Is my device?', isMyDevice);
+      
+      buttonContainer.innerHTML = '';
+      
+      if (isMyDevice) {
+        buttonContainer.innerHTML = `
+          <button onclick="releaseCharger()" class="w-full mt-3 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600">
+            ✓ Oslobodi punjač (MOJA REZERVACIJA)
+          </button>
+        `;
+      }
+      
+      updateTimeLeft();
+    } else {
+      chargerCard.classList.add('border-green-300');
+      chargerCard.classList.remove('border-red-300');
+      statusBadge.textContent = 'Slobodan';
+      statusBadge.className = 'px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-700';
+      
+      occupiedView.classList.add('hidden');
+      freeView.classList.remove('hidden');
+    }
+  }
+
+  function updateTimeLeft() {
+    if (!currentSession) return;
+    
+    const remaining = currentSession.endTime - Date.now();
+    
+    if (remaining > 0) {
+      const minutes = Math.floor(remaining / 60000);
+      const seconds = Math.floor((remaining % 60000) / 1000);
+      
+      if (minutes > 0) {
+        timeLeft.textContent = `${minutes} min`;
+      } else {
+        timeLeft.textContent = `${seconds} sek`;
+      }
+    } else {
+      timeLeft.textContent = 'Oslobađam...';
+      sessionRef.remove();
+    }
+  }
+
+  window.releaseCharger = function() {
+    if (confirm('Oslobodiš punjač?')) {
+      sessionRef.remove().then(() => {
+        showNotification('✓ Punjač oslobođen!', true);
+      }).catch((error) => {
+        console.error('Greška:', error);
+        showNotification('Greška pri oslobađanju!', false);
+      });
+    }
+  };
+
+  checkinBtn.addEventListener('click', () => {
+    modal.classList.remove('hidden');
+  });
+
+  cancelBtn.addEventListener('click', () => {
+    modal.classList.add('hidden');
+    nameInput.value = '';
+    duration = 30;
+    durationSlider.value = 30;
+    durationDisplay.textContent = '30 min';
+  });
+
+  durationSlider.addEventListener('input', (e) => {
+    duration = parseInt(e.target.value);
+    durationDisplay.textContent = `${duration} min`;
+  });
+
+  confirmBtn.addEventListener('click', () => {
+    const name = nameInput.value.trim();
+    
+    if (!name) {
+      showNotification('Unesi ime!', false);
+      return;
+    }
+    
+    const newSession = {
+      deviceId: myDeviceId,
+      name: name,
+      startTime: Date.now(),
+      endTime: Date.now() + (duration * 60 * 1000),
+      duration: duration
+    };
+    
+    console.log('Creating session:', newSession);
+    
+    sessionRef.set(newSession).then(() => {
+      modal.classList.add('hidden');
+      nameInput.value = '';
+      duration = 30;
+      durationSlider.value = 30;
+      durationDisplay.textContent = '30 min';
+      
+      showNotification('✓ Uspešno rezervisano!', true);
+    }).catch((error) => {
+      console.error('Greška:', error);
+      showNotification('Greška pri rezervaciji!', false);
+    });
+  });
+
+  setInterval(updateTimeLeft, 1000);
+
+} catch (error) {
+  console.error('CRITICAL ERROR:', error);
+  document.body.innerHTML = '<div style="padding:20px; text-align:center;"><h1>Greška pri učitavanju</h1><p>' + error.message + '</p></div>';
+}
+</script>
+
+</body>
+</html>
